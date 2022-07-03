@@ -29,18 +29,23 @@
 	td > button { }
 	
 	.present { font-family: serif; }
-	.filename-rom.missing { background: #FAA; }
+	.filename-rom.missing { background: #FAA; text-align: center; }
 	.filename-rom.missing:before { content: "(missing)"; }
 	
-	.filename-patch.missing { background: #CCC; }
+	.filename-patch.missing { background: #CCC; text-align: center; }
 	.filename-patch.missing:before { content: "(none)"; }
 	.filename-patch.unmatched { background: #FAA; }
+	
+	.crc {
+		font-family: monospace;
+		padding: .25em .25em;
+		word-spacing: -50%;
+	}
 </style>
 
 <!--<script src="js/locale.js"></script>-->
 <script src="js/MarcFile.js"></script>
 <script src="js/crc.js"></script>
-<script src="js/formats/zip.js"></script>
 <script src="js/formats/ips.js"></script>
 <!--
 <script src="js/formats/ups.js"></script>
@@ -52,28 +57,51 @@
 	  <script src="js/formats/vcdiff.js"></script>
 -->
 <script src="js/zip.js/zip.js"></script>
+<script src="js/zip.js/inflate.js"></script>
 
 <input type=file multiple id=$file>
 <hr>
 <table>
 	<tr>
-		<th> rom file <th> rom crc <th> patch file <th> output crc
+		<th> rom file <th> rom crc <th> patch file <th> output crc <th> output
 	<tbody id=$item_list>
 </table>
 
 <script>
+	zip.useWebWorkers = false
+	
 	let files = {__proto__:null}
 	let patches = {__proto__:null}
 	let items = []
+	function add(f) {
+		let [match, base_name, ext] = /^([^]*?)(\.[^.]+)?$/i.exec(f.name)
+		let map
+		f.base_name = base_name
+		if (ext && ext.toLowerCase()=='.ips') {
+			patches[base_name] = f
+		} else
+			files[base_name+(ext||"")] = f
+	}
+	
 	$file.onchange = e=>{
 		for (let f of e.target.files) {
-			let [match, base_name, ext] = /^([^]*?)(\.[^.]+)?$/i.exec(f.name)
-			let map
-			f.base_name = base_name
-			if (ext && ext.toLowerCase()=='.ips') {
-				patches[base_name] = f
-			} else
-				files[base_name+(ext||"")] = f
+			if (f.type=='application/zip'){
+				zip.createReader(
+					new zip.BlobReader(f),
+					z=>{
+						z.getEntries(entries=>{
+							for (let e of entries) {
+								e.name = e.filename
+								add(e)
+							}
+							draw()
+						})
+					},
+					z=>alert("error loading .zip")
+				)
+			} else {
+				add(f)
+			}
 		}
 		draw()
 	}
@@ -132,8 +160,45 @@
 			let cell2 = row.insertCell()
 			let cell3 = row.insertCell()
 			let cell4 = row.insertCell()
+			let cell5 = row.insertCell()
+			let cell6 = row.insertCell()
 			draw_label(cell1, item, 'rom', 'patch')
+			if (item.rom && item.rom.crc32) {
+				cell2.textContent = ("00000000"+item.rom.crc32.toString(16)).slice(-8).replace(/..(?!$)/g, "$& ")
+				cell2.className = 'crc'
+			}
 			draw_label(cell3, item, 'patch', 'rom')
+			let btn = document.createElement('button')
+			btn.onclick = e=> {
+				btn.disabled = true
+				apply(item, out=>{
+					window.saveAs = (blob, n)=>{
+						let a = document.createElement('a')
+						a.href = URL.createObjectURL(blob)
+						a.download = item.rom.name
+						a.textContent = 'download'
+						btn.replaceWith(a)
+					}
+					out.save()
+				})
+			}
+			btn.textContent = 'apply'
+			cell5.append(btn)
 		}
+	}
+	// hm maybe we could allow dragging items around in the table...
+	
+	function apply(item, cb) {
+		let ready=0
+		let rom, patch
+		let load = ()=>{
+			if (++ready==2) {
+				let ips = parseIPSFile(patch)
+				let out = ips.apply(rom)
+				cb(out)
+			}
+		}
+		rom = new MarcFile(item.rom, load)
+		patch = new MarcFile(item.patch, load)
 	}
 </script>
