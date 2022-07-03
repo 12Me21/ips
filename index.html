@@ -1,0 +1,133 @@
+<!doctype html><meta charset=utf-8>
+
+<meta name=viewport content="width=device-width, height=device-height, initial-scale=1">
+
+<style>
+	table, td, th {
+		border: 1px solid black;
+		border-collapse: collapse;
+	}
+	td, th {
+		padding: 0;
+		font-family: sans-serif;
+	}
+	th {
+		background: #CDF;
+		padding: .25em .5em;
+	}
+	
+	table { border-width: 3px; }
+	th { border-bottom-width: 3px; }
+	td { border-bottom-width: 2px; }
+	tr > :nth-child(2), tr > :nth-child(3) { border-right-width: 2px; }
+	th:nth-child(1), th:nth-child(3) { min-width: 10em;}
+	
+	td > span {
+		display: inline-block;
+		padding: .25em .5em;
+	}
+	td > button {
+	}
+	
+	.present {
+		font-family: serif;
+	}
+	.filename-patch.unmatched {
+		background: #FAA;
+	}
+	.filename-rom.missing {
+		background: #FAA;
+	}
+	.filename-rom.missing:before {
+		content: "(missing)";
+	}
+	.filename-patch.missing {
+		background: #CCC;
+	}
+	.filename-patch.missing:before {
+		content: "(none)";
+	}
+</style>
+
+<input type=file multiple id=$file>
+<hr>
+<table>
+	<tr>
+		<th> rom file <th> rom crc <th> patch file <th> output crc
+	<tbody id=$item_list>
+</table>
+
+<script>
+	let files = {__proto__:null}
+	let patches = {__proto__:null}
+	let items = []
+	$file.onchange = e=>{
+		for (let f of e.target.files) {
+			let [match, base_name, ext] = /^([^]*?)(\.[^.]+)?$/i.exec(f.name)
+			let map
+			f.base_name = base_name
+			if (ext && ext.toLowerCase()=='.ips') {
+				patches[base_name] = f
+			} else
+				files[base_name+(ext||"")] = f
+		}
+		draw()
+	}
+	
+	function group(files, patches) {
+		let used = {__proto__:null}
+		let items = []
+		for (let name in files) {
+			let file = files[name]
+			let patch = patches[file.name] || patches[file.base_name]
+			items.push({rom: file, patch: patch})
+			if (patch)
+				used[patch.base_name] = true
+		}
+		for (let base_name in patches) {
+			if (!used[base_name])
+				items.push({rom:null, patch:patches[base_name]})
+		}
+		return items
+	}
+	
+	function draw() {
+		items = group(files, patches)
+		
+		$item_list.textContent = ""
+		function draw_label(cell, item, type, other) {
+			let file = item[type]
+			cell.className = "filename filename-"+type
+			if (!file) {
+				cell.className += ' missing'
+			} else {
+				cell.dataset.name = file.name
+				cell.className += ' present'
+				if (!item[other])
+					cell.className += ' unmatched'
+				let lbl = document.createElement('span')
+				lbl.textContent = file.name
+				let btn = document.createElement('button')
+				btn.textContent = "❌"
+				
+				btn.onclick = e=>{
+					if (type=='rom')
+						delete files[file.name]
+					else
+						delete patches[file.base_name]
+					draw()
+				}
+				cell.append(btn, lbl)
+			}
+		}
+		for (let item of items) {
+			let row = $item_list.insertRow()
+			let cell1 = row.insertCell()
+			let cell2 = row.insertCell()
+			let cell3 = row.insertCell()
+			let cell4 = row.insertCell()
+			draw_label(cell1, item, 'rom', 'patch')
+			draw_label(cell3, item, 'patch', 'rom')
+		}
+	}
+</script>
