@@ -1,0 +1,3 @@
+[submodule "RomPatcher"]
+	path = RomPatcher
+	url = https://github.com/marcrobledo/RomPatcher.js/

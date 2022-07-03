@@ -26,28 +26,32 @@
 		display: inline-block;
 		padding: .25em .5em;
 	}
-	td > button {
-	}
+	td > button { }
 	
-	.present {
-		font-family: serif;
-	}
-	.filename-patch.unmatched {
-		background: #FAA;
-	}
-	.filename-rom.missing {
-		background: #FAA;
-	}
-	.filename-rom.missing:before {
-		content: "(missing)";
-	}
-	.filename-patch.missing {
-		background: #CCC;
-	}
-	.filename-patch.missing:before {
-		content: "(none)";
-	}
+	.present { font-family: serif; }
+	.filename-rom.missing { background: #FAA; }
+	.filename-rom.missing:before { content: "(missing)"; }
+	
+	.filename-patch.missing { background: #CCC; }
+	.filename-patch.missing:before { content: "(none)"; }
+	.filename-patch.unmatched { background: #FAA; }
 </style>
+
+<!--<script src="js/locale.js"></script>-->
+<script src="js/MarcFile.js"></script>
+<script src="js/crc.js"></script>
+<script src="js/formats/zip.js"></script>
+<script src="js/formats/ips.js"></script>
+<!--
+<script src="js/formats/ups.js"></script>
+<script src="js/formats/aps.js"></script>
+<script src="js/formats/bps.js"></script>
+<script src="js/formats/rup.js"></script>
+<script src="js/formats/ppf.js"></script>
+<script src="js/formats/pmsr.js"></script>
+	  <script src="js/formats/vcdiff.js"></script>
+-->
+<script src="js/zip.js/zip.js"></script>
 
 <input type=file multiple id=$file>
 <hr>
@@ -77,6 +81,7 @@
 	function group(files, patches) {
 		let used = {__proto__:null}
 		let items = []
+		// find the patch file for each rom
 		for (let name in files) {
 			let file = files[name]
 			let patch = patches[file.name] || patches[file.base_name]
@@ -84,6 +89,7 @@
 			if (patch)
 				used[patch.base_name] = true
 		}
+		// add any unused patch files
 		for (let base_name in patches) {
 			if (!used[base_name])
 				items.push({rom:null, patch:patches[base_name]})
