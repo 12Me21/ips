@@ -3,8 +3,12 @@
 <meta name=viewport content="width=device-width, height=device-height, initial-scale=1">
 
 <style>
+	* {
+		word-break: break-word;
+	}
+	
 	table, td, th {
-		border: 2px solid black;
+		border: 2px solid gray;
 		border-collapse: collapse;
 	}
 	td, th {
@@ -15,10 +19,11 @@
 		background: #CDF;
 		padding: .25em .5em;
 	}
-	
-	table { border-width: 4px; }
-	th, td { border-bottom-width: 5px; }
-	th:nth-child(1), th:nth-child(2) { min-width: 10em;}
+	[hidden] {display:none !important;}
+	table { border: 4px solid black; }
+	th, td { border-bottom: 5px solid black; }
+	td[data-type] { min-width: 10em;}
+	td:not([data-type]) {text-align:center;}
 	
 	td span {
 		display: inline-block;
@@ -26,26 +31,53 @@
 	}
 	td button { }
 	
-	.present { font-family: serif; }
-	.filename-rom.missing { background: #FAA; text-align: center; }
-	.filename-rom.missing:before { content: "(missing)"; }
-	
-	.filename-patch.missing { background: #CCC; text-align: center; }
-	.filename-patch.missing:before { content: "(none)"; }
-	.filename-patch.unmatched { background: #FAA; }
-	
+	file-label[data-type="rom"] {
+		background: #00F3;
+	}
+	th[data-type="rom"] {
+		background: #00D6;
+	}
+	file-label[data-type="patch"] {
+		background: #F0F3;
+	}
+	th[data-type="patch"] {
+		background: #D0D6;
+	}
+	file-label[data-type="out"] {
+		background: #0F03;
+	}
+	th[data-type="out"] {
+		background: #0D06;
+	}
+	.crc button {
+		color: #D00;
+		font-style: italic;
+	}
+	.filename {
+		line-break: anywhere;
+	/*	display: inline;*/
+		font-family: serif;
+	}
 	.crc {
 		font-family: monospace;
 		padding: .25em .25em;
-		word-spacing: -50%;
+		word-spacing: -73%;
 		display: flex;
 	}
-	.crc > span:first-child {
+	.crc > span:nth-child(2) {
 		flex-grow: 1;
 	}
-	
+	#\$item_list td {
+		height: 3em;
+	}
 	file-label {
 		display: block;
+		margin: 1px;
+		border: 2px solid purple;
+		border-radius: 10px;
+	}
+	.drop {
+		background: orange;
 	}
 </style>
 
@@ -64,136 +96,66 @@
 -->
 <script src="js/zip.js/zip.js"></script>
 <script src="js/zip.js/inflate.js"></script>
+
+<script src="main.js"></script>
 
 <input type=file multiple id=$file>
 <hr>
 <table id=$table>
 	<tr>
-		<th> rom file <th> patch file <th> output
+		<th data-type=rom> rom files <th><th data-type=patch> patch files <th><th data-type=out> output
 	<tbody id=$item_list>
 </table>
+<button onclick="for (let x of document.getElementsByClassName('ack'))x.onclick()">Apply</button>
 
 <script>
 	zip.useWebWorkers = false
 	
-	let files = {__proto__:null}
-	let patches = {__proto__:null}
-	let items = []
-	function add(f) {
-		let [match, base_name, ext] = /^([^]*?)(\.[^.]+)?$/i.exec(f.name)
-		let map
-		f.base_name = base_name
-		if (ext && ext.toLowerCase()=='.ips') {
-			patches[base_name] = f
-			f.label = draw_label(f, 'patch')
-			f.ips = true
-		} else {
-			files[base_name+(ext||"")] = f
-			f.label = draw_label(f, 'rom')
-		}
-	}
-	
-	$file.onchange = e=>{
-		for (let f of e.target.files) {
-			if (f.type=='application/zip'){
+	function upload(files) {
+		for (let f of files) {
+			if (f.type=='application/zip') {
 				zip.createReader(
 					new zip.BlobReader(f),
 					z=>{
 						z.getEntries(entries=>{
-							for (let e of entries) {
-								e.name = e.filename
-								e.size = e.uncompressedSize
-								add(e)
-							}
-							draw()
+							for (let e of entries)
+								new File(e).insert($item_list)
 						})
 					},
 					z=>alert("error loading .zip")
 				)
 			} else {
-				let m = new MarcFile(f, e=>{
-					m.crc32 = crc32(m)
-					draw_label(m, m.ips ? 'patch' : 'rom', m.label)
-				})
-				m.name = f.name
-				m.size = f.size
-				add(m)
+				new File(f).insert($item_list)
 			}
 		}
-		draw()
 	}
 	
-	function draw_label(file, type, cell = document.createElement('file-label')) {
-		cell.x_file = file
-		cell.textContent = ""
-		cell.draggable = true
-		cell.className = "filename filename-"+type
-		if (!file) {
-			cell.className += ' missing'
-		} else {
-			cell.dataset.name = file.name
-			cell.className += ' present'
-			let lbl = document.createElement('span')
-			lbl.textContent = file.name
-			let btn = document.createElement('button')
-			btn.textContent = "❌"
-			cell.append(btn, lbl)
-			
-			let e = document.createElement('div')
-			let a = document.createElement('span')
-			if (file.size>1000)
-				a.textContent = (file.size/1024).toFixed(1)+"K"
-			else
-				a.textContent = file.size+"B"
-			let b = document.createElement('span')
-			if (file.crc32)
-				b.textContent = ("00000000"+file.crc32.toString(16)).slice(-8).replace(/..(?!$)/g, "$& ")
-			e.append(a,b)
-			e.className = 'crc'
-			cell.append(e)
-			
-			btn.onclick = e=>{
-				if (type=='rom')
-					delete files[file.name]
-				else
-					delete patches[file.base_name]
-				file.label.remove()
-			}
-		}
-		return cell
-	}
+	$file.onchange = ev=>{upload($file.files);$file.value=null}
 	
-	function group(files, patches) {
-		let used = {__proto__:null}
-		let items = []
-		// find the patch file for each rom
-		for (let name in files) {
-			let file = files[name]
-			let patch = patches[file.name] || patches[file.base_name]
-			items.push({rom: file, patch: patch})
-			if (patch)
-				used[patch.base_name] = true
+	document.ondragover = ev=>{
+		if (ev.dataTransfer.types.includes("Files")) {
+			ev.preventDefault()
+			ev.dataTransfer.dropEffect = 'copy'
 		}
-		// add any unused patch files
-		for (let base_name in patches) {
-			if (!used[base_name])
-				items.push({rom:null, patch:patches[base_name]})
+	}
+	document.ondrop = ev=>{
+		if (ev.dataTransfer.files.length) {
+			ev.preventDefault()
+			upload(ev.dataTransfer.files)
+			//let c = findCell()
 		}
-		return items
 	}
 	
 	let dragging
 	function dropzone(cell) {
-		cell.ondragenter = ev=>{
-			if ([...event.dataTransfer.items].find(x=>x.type=='text/x-drag'))
-				event.preventDefault()
-		}
+		let n = false
 		cell.ondragover = ev=>{
 			ev.dataTransfer.dropEffect = 'move'
 			ev.preventDefault()
 		}
 		cell.ondrop = ev=>{
 			if (dragging && ev.dataTransfer.getData('text/x-drag')) {
+				cell.classList.remove('drop')
 				let d = dragging
 				dragging = null
 				let p = d.parentNode
@@ -201,69 +163,103 @@
 					if (!p) return
 					p.append(cell.firstChild)
 				}
+				d.hidden = false
 				cell.append(d)
+				clean_rows($item_list)
 			}
 		}
 	}
-	
-	$table.ondragstart = ev=>{
+	function findCell(t) {
+		if (t instanceof Text)
+			t = t.parentNode
+		if (t)
+			return t.closest('td[data-type]')
+	}
+	function moved(ev) {
+		if (![...ev.dataTransfer.items].find(x=>x.type=='text/x-drag'))
+			return
+		let x = findCell(ev.target)
+		let y = findCell(ev.relatedTarget)
+		if (x==y) return
+		return x
+	}
+	document.ondragend = ev=>{
+		if (dragging) {
+			dragging.hidden = false
+			dragging = null
+		}
+	}
+	document.ondragenter = ev=>{
+		let m = moved(ev)
+		if (m) {
+			m.classList.add('drop')
+			ev.preventDefault()
+		}
+	}
+	document.ondragleave = ev=>{
+		let m = moved(ev)
+		if (m)
+			m.classList.remove('drop')
+	}
+	$item_list.ondragstart = ev=>{
 		if (ev.target.tagName=='FILE-LABEL') {
 			dragging = ev.target
+			window.setTimeout(e=>{
+				ev.target.hidden = true
+			}, 2)
+			
 			ev.dataTransfer.setData('text/x-drag', 1)
 			ev.dataTransfer.effectAllowed = 'move'
 		}
 	}
-	
-	function draw() {
-		items = group(files, patches)
-		
-		$item_list.textContent = ""
-		for (let item of items) {
-			let row = $item_list.insertRow()
-			let cell1 = row.insertCell()
-			let cell3 = row.insertCell()
-			let cell4 = row.insertCell()
-			dropzone(cell1)
-			dropzone(cell3)
-			if (item.rom)
-				cell1.append(item.rom.label)
-			if (item.patch)
-				cell3.append(item.patch.label)
-			let btn = document.createElement('button')
-			btn.textContent = 'apply'
-			cell4.append(btn)
-			btn.onclick = e=> {
-				btn.disabled = true
-				let rom = cell1.firstChild
-				let patch = cell3.firstChild
-				if (rom && patch) {
-					rom = rom.x_file
-					patch = patch.x_file
-					apply(rom, patch, out=>{
-						window.saveAs = (blob, n)=>{
-							let a = document.createElement('a')
-							a.href = URL.createObjectURL(blob)
-							a.download = item.rom.name
-							a.textContent = 'download'
-							//URL.revokeObjectURL(a.href)
-							btn.replaceWith(a)
-						}
-						out.save()
-					})
-				}
-			}
+	function add_row(tbody) {
+		let row = new row_template().$root
+		row.querySelectorAll('td[data-type]').forEach(x=>dropzone(x))
+		tbody.append(row)
+		return row
+	}
+	function clean_rows(tbody) {
+		let rows = tbody.rows
+		if (rows.length<1 || rows[rows.length-1].querySelector('file-label'))
+			add_row(tbody)
+		else if (rows.length>=2) {
+			let last2 = rows[rows.length-2]
+			if (!last2.querySelector('file-label'))
+				last2.remove()
 		}
 	}
-	// hm maybe we could allow dragging items around in the table...
+	clean_rows($item_list)
 	
-	function apply(rom, patch, cb) {
+	function apply_row(row) {
+		let c = row.cells
+		let rom = c.rom.firstChild
+		let patch = c.patch.firstChild
+		if (rom) {
+			rom = File.of(rom)
+			patch = patch && File.of(patch)
+			apply(rom, patch).then(file=>{
+				c.out.replaceChildren(file.$elem)
+			})
+		}
+	}
+	
+	async function apply(rom, patch) {
+		if (rom && !patch) {
+			return rom.clone('out')
+		}
+		await Promise.all([rom.ready(), patch.ready()])
+		let ips = parseIPSFile(patch.mf)
+		let out = ips.apply(rom.mf)
+		out.fileName = rom.name
+		return new File(out)
+		
 //		let ready=0
 //		let rom, patch
 //		let load = ()=>{
 //			if (++ready==2) {
-				let ips = parseIPSFile(patch)
-				let out = ips.apply(rom)
-				cb(out)
+				
+				
+				
 //			}
 //		}
 		//rom = new MarcFile(rom, load)
