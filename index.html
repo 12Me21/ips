@@ -31,24 +31,18 @@
 	}
 	td button { }
 	
-	file-label[data-type="rom"] {
-		background: #00F3;
-	}
-	th[data-type="rom"] {
-		background: #00D6;
-	}
-	file-label[data-type="patch"] {
-		background: #F0F3;
-	}
-	th[data-type="patch"] {
-		background: #D0D6;
-	}
-	file-label[data-type="out"] {
-		background: #0F03;
-	}
-	th[data-type="out"] {
-		background: #0D06;
-	}
+	file-label[data-type="rom"] { background: #00F3; }
+	th[data-type="rom"] { background: #00D6; }
+	td[data-type="rom"] { background: #00F3; }
+	
+	file-label[data-type="patch"] { background: #F0F3; }
+	th[data-type="patch"] { background: #D0D6; }
+	td[data-type="patch"] { background: #F0F3; }
+	
+	file-label[data-type="out"] { background: #0F03; }
+	th[data-type="out"] { background: #0D06; }
+	td[data-type="out"] { background: #0F03; }
+
 	.crc button {
 		color: #D00;
 		font-style: italic;
@@ -72,12 +66,18 @@
 	}
 	file-label {
 		display: block;
-		margin: 1px;
-		border: 2px solid purple;
+		margin: 2px;
 		border-radius: 10px;
+		animation: heck .5s;
 	}
 	.drop {
 		background: orange;
+	}
+	file-label.invalid {
+		background: #F008;
+	}
+	@keyframes heck {
+		from {border-color: white;}
 	}
 </style>
 
@@ -130,7 +130,7 @@
 		}
 	}
 	
-	$file.onchange = ev=>{upload($file.files);$file.value=null}
+	$file.onchange = ev=>{upload($file.files)}
 	
 	document.ondragover = ev=>{
 		if (ev.dataTransfer.types.includes("Files")) {
@@ -142,7 +142,6 @@
 		if (ev.dataTransfer.files.length) {
 			ev.preventDefault()
 			upload(ev.dataTransfer.files)
-			//let c = findCell()
 		}
 	}
 	
@@ -168,20 +167,17 @@
 				clean_rows($item_list)
 			}
 		}
-	}
-	function findCell(t) {
-		if (t instanceof Text)
-			t = t.parentNode
-		if (t)
-			return t.closest('td[data-type]')
-	}
-	function moved(ev) {
-		if (![...ev.dataTransfer.items].find(x=>x.type=='text/x-drag'))
-			return
-		let x = findCell(ev.target)
-		let y = findCell(ev.relatedTarget)
-		if (x==y) return
-		return x
+		cell.ondragenter = ev=>{
+			if (cell.contains(ev.relatedTarget))
+				return
+			cell.classList.add('drop')
+			ev.preventDefault()
+		}
+		cell.ondragleave = ev=>{
+			if (cell.contains(ev.relatedTarget))
+				return
+			cell.classList.remove('drop')
+		}
 	}
 	document.ondragend = ev=>{
 		if (dragging) {
@@ -189,23 +185,11 @@
 			dragging = null
 		}
 	}
-	document.ondragenter = ev=>{
-		let m = moved(ev)
-		if (m) {
-			m.classList.add('drop')
-			ev.preventDefault()
-		}
-	}
-	document.ondragleave = ev=>{
-		let m = moved(ev)
-		if (m)
-			m.classList.remove('drop')
-	}
 	$item_list.ondragstart = ev=>{
 		if (ev.target.tagName=='FILE-LABEL') {
 			dragging = ev.target
 			window.setTimeout(e=>{
-				ev.target.hidden = true
+				//ev.target.hidden = true
 			}, 2)
 			
 			ev.dataTransfer.setData('text/x-drag', 1)
@@ -214,7 +198,7 @@
 	}
 	function add_row(tbody) {
 		let row = new row_template().$root
-		row.querySelectorAll('td[data-type]').forEach(x=>dropzone(x))
+		row.querySelectorAll('td[data-type]').forEach(dropzone)
 		tbody.append(row)
 		return row
 	}
@@ -231,14 +215,13 @@
 	clean_rows($item_list)
 	
 	function apply_row(row) {
-		let c = row.cells
-		let rom = c.rom.firstChild
-		let patch = c.patch.firstChild
+		let {rom, patch} = File.get_row_files(row)
 		if (rom) {
-			rom = File.of(rom)
-			patch = patch && File.of(patch)
+			let out = row.cells.$out
+			out.textContent = ""
 			apply(rom, patch).then(file=>{
-				c.out.replaceChildren(file.$elem)
+				if (file)
+					file.put(out)
 			})
 		}
 	}
@@ -247,22 +230,34 @@
 		if (rom && !patch) {
 			return rom.clone('out')
 		}
+		if (patch.type!='patch')
+			return
 		await Promise.all([rom.ready(), patch.ready()])
+		if (patch.type!='patch')
+			return
 		let ips = parseIPSFile(patch.mf)
 		let out = ips.apply(rom.mf)
 		out.fileName = rom.name
 		return new File(out)
-		
-//		let ready=0
-//		let rom, patch
-//		let load = ()=>{
-//			if (++ready==2) {
+	}
+	
+	function create_zip() {
+		zip.createWriter(new zip.BlobWriter(), (writer)=>{
+			
+			
+			writer.add("filename.txt", new zip.TextReader("test!"), function() {
+				// onsuccess callback
 				
-				
-				
-//			}
-//		}
-		//rom = new MarcFile(rom, load)
-		//patch = new MarcFile(patch, load)
+				// close the zip writer
+				writer.close(function(blob) {
+					// blob contains the zip file as a Blob object
+					
+				})
+			}, function(currentIndex, totalIndex) {
+				// onprogress callback
+			})
+		}, function(error) {
+			// onerror callback
+		})
 	}
 </script>

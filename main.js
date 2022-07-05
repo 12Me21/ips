@@ -43,7 +43,7 @@ this.$${id} = node${path}`
 	}
 }
 
-let row_template = HTML`<tr><td data-type=rom id=rom><td>+<td data-type=patch id=patch><td onclick=apply_row(this.parentNode) class=ack>→<td data-type=out id=out>`
+let row_template = HTML`<tr><td data-type=rom id=$rom><td>+<td data-type=patch id=$patch><td onclick=apply_row(this.parentNode) class=ack>→<td data-type=out id=$out>`
 
 class File {
 	constructor(thing) {
@@ -64,7 +64,9 @@ class File {
 						blob.name = "file.heck"
 						if (blob.size==0)
 							Object.defineProperty(blob, 'size', {value:'0',configurable:true})
-						this.mf = new MarcFile(blob, y, n)
+						this.mf = new MarcFile(blob, x=>{
+							this.check_valid() ? y() : n('invalid file')
+						}, n)
 					}, null, n)
 				})
 				this.ready = x=>p
@@ -89,7 +91,7 @@ class File {
 					this.mf = new MarcFile(thing, e=>{
 						this.crc = crc32(this.mf)
 						this.draw_crc()
-						y()
+						this.check_valid() ? y() : n('invalid file')
 					}, n)
 				})
 				this.ready = x=>p
@@ -107,6 +109,19 @@ class File {
 		if (thing.fileName)
 			this.type = 'out'
 		this.draw()
+	}
+	// after ready
+	check_valid() {
+		if (this.type=='patch') {
+			let p = this.mf
+			p.seek(0)
+			if (String.fromCharCode.apply(String, p.readBytes(5)) != IPS_MAGIC) {
+				this.invalid = true
+				this.$elem.classList.add('invalid')
+				return false
+			}
+		}
+		return true
 	}
 	draw_crc() {
 		if (this.crc)
@@ -171,6 +186,10 @@ class File {
 		clean_rows($item_list)
 	}
 	
+	put(cell) {
+		cell.replaceChildren(this.$elem)
+	}
+	
 	insert(tbody) {
 		if (this.type=='rom') {
 			this.look(tbody, 'patch', p=>p.base==this.name, p=>p.base==this.base)
@@ -182,5 +201,28 @@ class File {
 	static of(elem) {
 		return this.elems.get(elem)
 	}
+	static get_out_files(tbody) {
+		let files = []
+		for (let {$out} of tbody.rows) {
+			let f = $out.firstChild
+			if (f)
+				files.push(this.of(f))
+		}
+		return files
+	}
+	static get_row_files(row) {
+		let {$rom, $patch} = row.cells
+		return {
+			rom: File.of($rom.firstChild),
+			patch: File.of($patch.firstChild),
+		}
+	}
 }
 File.elems = new WeakMap()
+
+MarcFile.prototype.blob = function() {
+	let blob
+	window.saveAs = x=>{blob = x}
+	this.save()
+	return blob
+}
