@@ -28,28 +28,50 @@ Error.prototype[Symbol.toPrimitive] = function() {
 		if (root.childNodes.length==1)
 			root = root.firstChild
 		
-		let init = `const node=document.importNode(this.template, true)
-this.$root=node`
+		let init = `const node=document.importNode(this, true)
+holder.$root=node`
 		for (let node of content.querySelectorAll("[\\$]")) {
 			let path = get_path(root, node)
 			let id = node.getAttribute('$')
 			node.removeAttribute('$')
 			init += `
-this.$${id} = node${path}`
+holder.$${id} = node${path}`
 		}
-		let c = new Function(init)
-		c.prototype = {template: root}
+		init += `
+return holder`
+		let c = new Function('holder={__proto__:null}', init).bind(root)
+		//c.prototype = {template: root}
 		return c
 	}
 }
 
-let row_template = HTML`<tr><td data-type=rom id=$rom><td>+<td data-type=patch id=$patch><td onclick=apply_row(this.parentNode) class=ack>→<td data-type=out id=$out>`
+let row_template = HTML`
+<tr>
+	<td data-type=rom id=$rom>
+	<td>+
+	<td data-type=patch id=$patch>
+	<td onclick=apply_row(this.parentNode) class=ack>→
+	<td data-type=out id=$out>
+`
+
+let label_template = HTML`
+<file-label draggable=true>
+	<div>
+		<span $=name class='filename'></span>
+		<span $=status></span>
+	</div>
+	<div class=info>
+		<button $=delete>×</button>
+		<span $=size></span>
+		<span $=crc class=crc></span>
+	</div>
+</file-label>`
 
 class File {
 	constructor(thing) {
-		this.$elem = document.createElement('file-label')
-		File.elems.set(this.$elem, this)
-		this.$elem.draggable = true
+		label_template(this)
+		File.elems.set(this.$root, this)
+		this.$root.draggable = true
 		// zip entry
 		if ('compressedSize' in thing) {
 			this.name = thing.filename
@@ -58,6 +80,7 @@ class File {
 			this.ze = thing
 			let p
 			this.ready = x=>{
+				this.$status.textContent = "loading"
 				let p = new Promise((y,n)=>{
 					console.log('reading zip entry')
 					this.ze.getData(new zip.BlobWriter(), blob=>{
@@ -70,6 +93,11 @@ class File {
 					}, null, n)
 				})
 				this.ready = x=>p
+				p.then(x=>{
+					this.$status.textContent = ""
+				}, x=>{
+					this.$status.textContent = "error"
+				})
 				return p
 			}
 		}
@@ -87,6 +115,7 @@ class File {
 			this.size = thing.size
 			this.crc = null
 			this.ready = x=>{
+				this.$status.textContent = "loading"
 				let p = new Promise((y,n)=>{
 					this.mf = new MarcFile(thing, e=>{
 						this.crc = crc32(this.mf)
@@ -95,6 +124,11 @@ class File {
 					}, n)
 				})
 				this.ready = x=>p
+				p.then(x=>{
+					this.$status.textContent = ""
+				}, x=>{
+					this.$status.textContent = "error"
+				})
 				return p
 			}
 			this.ready()
@@ -117,7 +151,7 @@ class File {
 			p.seek(0)
 			if (String.fromCharCode.apply(String, p.readBytes(5)) != IPS_MAGIC) {
 				this.invalid = true
-				this.$elem.classList.add('invalid')
+				this.$root.classList.add('invalid')
 				return false
 			}
 		}
@@ -129,43 +163,27 @@ class File {
 	}
 	clone(type) {
 		let f = Object.create(File.prototype, Object.getOwnPropertyDescriptors(this))
-		f.$elem = document.createElement('file-label')
-		File.elems.set(f.$elem, f)
+		label_template(f)
+		File.elems.set(f.$root, f)
 		f.type = type
-		f.$elem.draggable = true
 		f.draw()
 		return f
 	}
 	draw() {
-		let cell = this.$elem
-		cell.textContent = ""
-		this.$elem.dataset.type = this.type
-		let lbl = document.createElement('span')
-		lbl.textContent = this.name
-		lbl.className = 'filename'
-		let btn = document.createElement('button')
-		btn.textContent = "×"
-		cell.append(btn, lbl)
-		let e = document.createElement('div')
-		let a = document.createElement('span')
+		this.$root.dataset.type = this.type
+		this.$name.textContent = this.name
 		if (this.size>1000)
-			a.textContent = (this.size/1024).toFixed(1)+" KB"
+			this.$size.textContent = (this.size/1024).toFixed(1)+" KB"
 		else
-			a.textContent = this.size+" B"
-		let b = document.createElement('span')
-		this.$crc = b
+			this.$size.textContent = this.size+" B"
 		this.draw_crc()
-		e.append(btn, a,b)
-		e.className = 'crc'
-		cell.append(e)
-		
-		btn.onclick = e=>{this.delete()}
+		this.$delete.onclick = ev=>{this.delete()}
 	}
 	delete() {
 		this.mf = this.ze = null
-		//File.elems.remove(this.$elem)
-		this.$elem.remove()
-		this.$elem = null
+		//File.elems.remove(this.$root)
+		this.$root.remove()
+		this.$root = null
 		clean_rows($item_list)
 	}
 	look(tbody, other, test1, test2) {
@@ -173,7 +191,7 @@ class File {
 		let p = patches.find(test1) || patches.find(test2)
 		let row
 		if (p) {
-			row = p.$elem.parentNode.parentNode
+			row = p.$root.parentNode.parentNode
 		} else {
 			for (let r of tbody.rows) {
 				if (!r.querySelector('file-label'))
@@ -182,12 +200,12 @@ class File {
 			row = row || add_row(tbody)
 		}
 		let cell = row.querySelector(`td[data-type="${this.type}"]`)
-		cell.replaceChildren(this.$elem)
+		cell.replaceChildren(this.$root)
 		clean_rows($item_list)
 	}
 	
 	put(cell) {
-		cell.replaceChildren(this.$elem)
+		cell.replaceChildren(this.$root)
 	}
 	
 	insert(tbody) {
