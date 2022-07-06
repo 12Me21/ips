@@ -72,25 +72,23 @@ class File {
 		label_template(this)
 		File.elems.set(this.$root, this)
 		this.$root.draggable = true
+		console.log(thing)
 		// zip entry
-		if ('compressedSize' in thing) {
-			this.name = thing.filename
-			this.size = thing.uncompressedSize
-			this.crc = thing.crc32
+		if ('dosPermissions' in thing) {
+			this.name = thing.unsafeOriginalName
+			this.size = thing._data.uncompressedSize
+			this.crc = thing._data.crc32
+			if (this.crc<0)
+				this.crc += 2**32
 			this.ze = thing
 			let p
 			this.ready = x=>{
 				this.$status.textContent = "loading"
 				let p = new Promise((y,n)=>{
-					console.log('reading zip entry')
-					this.ze.getData(new zip.BlobWriter(), blob=>{
-						blob.name = "file.heck"
-						if (blob.size==0)
-							Object.defineProperty(blob, 'size', {value:'0',configurable:true})
-						this.mf = new MarcFile(blob, x=>{
-							this.check_valid() ? y() : n('invalid file')
-						}, n)
-					}, null, n)
+					this.ze.async('arraybuffer').then(ab=>{
+						this.mf = new MarcFile(ab)
+						this.check_valid() ? y() : n('invalid file')
+					})
 				})
 				this.ready = x=>p
 				p.then(x=>{
@@ -221,7 +219,8 @@ class File {
 	}
 	static get_out_files(tbody) {
 		let files = []
-		for (let {$out} of tbody.rows) {
+		for (let row of tbody.rows) {
+			let $out = row.cells.$out
 			let f = $out.firstChild
 			if (f)
 				files.push(this.of(f))
@@ -242,5 +241,20 @@ MarcFile.prototype.blob = function() {
 	let blob
 	window.saveAs = x=>{blob = x}
 	this.save()
+	return blob
+}
+
+async function write_zip(files) {
+	let zbw = new zip.BlobWriter("application/zip")
+	let blob = await {then:(yy,nn)=>zip.createWriter(zbw, async(writer)=>{
+		for (let f of files) {
+			await f.ready()
+			f.$status.textContent = "saving"
+			let zbr = new zip.BlobReader(f.mf.blob())
+			await {then:y=>writer.add(f.name, zbr, y)}
+			f.$status.textContent = "added"
+		}
+		writer.close(yy)
+	}, nn)}
 	return blob
 }

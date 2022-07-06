@@ -103,36 +103,29 @@
 <script src="js/formats/pmsr.js"></script>
 	  <script src="js/formats/vcdiff.js"></script>
 -->
-<script src="js/zip.js/zip.js"></script>
-<script src="js/zip.js/inflate.js"></script>
+<script src="jszip.js"></script>
 
 <script src="main.js"></script>
 
 <input type=file multiple id=$file>
 <hr>
 <table id=$table>
-	<tr>
+	<thead><tr>
 		<th data-type=rom> rom files <th><th data-type=patch> patch files <th><th data-type=out> output
 	<tbody id=$item_list>
 </table>
 <button onclick="for (let x of document.getElementsByClassName('ack'))x.onclick()">Apply</button>
 
 <script>
-	zip.useWebWorkers = false
-	
-	function upload(files) {
+	async function upload(files) {
 		for (let f of files) {
 			if (f.type=='application/zip') {
-				zip.createReader(
-					new zip.BlobReader(f),
-					z=>{
-						z.getEntries(entries=>{
-							for (let e of entries)
-								new File(e).insert($item_list)
-						})
-					},
-					z=>alert("error loading .zip")
-				)
+				var zip = new JSZip()
+				await zip.loadAsync(f, {checkCRC32: true})
+				for (let ze of Object.values(zip.files)) {
+					let f = new File(ze)
+					f.insert($item_list)
+				}
 			} else {
 				new File(f).insert($item_list)
 			}
@@ -249,25 +242,5 @@
 		let out = ips.apply(rom.mf)
 		out.fileName = rom.name
 		return new File(out)
-	}
-	
-	function create_zip() {
-		zip.createWriter(new zip.BlobWriter(), (writer)=>{
-			
-			
-			writer.add("filename.txt", new zip.TextReader("test!"), function() {
-				// onsuccess callback
-				
-				// close the zip writer
-				writer.close(function(blob) {
-					// blob contains the zip file as a Blob object
-					
-				})
-			}, function(currentIndex, totalIndex) {
-				// onprogress callback
-			})
-		}, function(error) {
-			// onerror callback
-		})
 	}
 </script>
