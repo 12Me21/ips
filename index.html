@@ -114,14 +114,15 @@
 		<th data-type=rom> rom files <th><th data-type=patch> patch files <th><th data-type=out> output
 	<tbody id=$item_list>
 </table>
-<button onclick="for (let x of document.getElementsByClassName('ack'))x.onclick()">Apply</button>
+<button onclick="btn_apply()">Apply</button>
+<button onclick="btn_zip()">Generate Zip</button>
+<a id=$download>Download</a>
 
 <script>
 	async function upload(files) {
 		for (let f of files) {
 			if (f.type=='application/zip') {
-				var zip = new JSZip()
-				await zip.loadAsync(f, {checkCRC32: true})
+				let zip = await JSZip.loadAsync(f, {})
 				for (let ze of Object.values(zip.files)) {
 					let f = new File(ze)
 					f.insert($item_list)
@@ -229,18 +230,36 @@
 	}
 	
 	async function apply(rom, patch) {
-		console.log(rom, patch)
-		if (rom && !patch) {
+		if (rom && !patch)
 			return rom.clone('out')
-		}
 		if (patch.type!='patch')
 			return
 		await Promise.all([rom.ready(), patch.ready()])
 		if (patch.type!='patch')
 			return
+		patch.status = "applying"
 		let ips = parseIPSFile(patch.mf)
 		let out = ips.apply(rom.mf)
+		patch.status = ""
 		out.fileName = rom.name
 		return new File(out)
+	}
+	
+	function btn_apply() {
+		for (let x of document.getElementsByClassName('ack'))
+			x.onclick()
+	}
+	
+	async function btn_zip() {
+		let x = File.get_out_files($item_list)
+		let zip = await write_zip(x)
+		
+		if ($download.href) {
+			URL.revokeObjectURL($download.href)
+			$download.href = ""
+		}
+		$download.download = "patched.zip"
+		$download.href = URL.createObjectURL(zip)
+		$download.click()
 	}
 </script>

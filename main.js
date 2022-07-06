@@ -71,9 +71,7 @@ class File {
 	constructor(thing) {
 		label_template(this)
 		File.elems.set(this.$root, this)
-		this.$root.draggable = true
-		console.log(thing)
-		// zip entry
+		// ZipObject
 		if ('dosPermissions' in thing) {
 			this.name = thing.unsafeOriginalName
 			this.size = thing._data.uncompressedSize
@@ -83,7 +81,7 @@ class File {
 			this.ze = thing
 			let p
 			this.ready = x=>{
-				this.$status.textContent = "loading"
+				this.status = "loading"
 				let p = new Promise((y,n)=>{
 					this.ze.async('arraybuffer').then(ab=>{
 						this.mf = new MarcFile(ab)
@@ -92,14 +90,14 @@ class File {
 				})
 				this.ready = x=>p
 				p.then(x=>{
-					this.$status.textContent = ""
+					this.status = ""
 				}, x=>{
-					this.$status.textContent = "error"
+					this.status = "error"
 				})
 				return p
 			}
 		}
-		// marcfile
+		// MarcFile
 		else if (thing.fileName) {
 			this.name = thing.fileName
 			this.size = thing.fileSize
@@ -107,30 +105,27 @@ class File {
 			this.mf = thing
 			this.ready = x=>true
 		}
-		// real file
+		// Blob
 		else {
 			this.name = thing.name
 			this.size = thing.size
 			this.crc = null
-			this.ready = x=>{
-				this.$status.textContent = "loading"
-				let p = new Promise((y,n)=>{
-					this.mf = new MarcFile(thing, e=>{
-						this.crc = crc32(this.mf)
-						this.draw_crc()
-						this.check_valid() ? y() : n('invalid file')
-					}, n)
-				})
-				this.ready = x=>p
-				p.then(x=>{
-					this.$status.textContent = ""
-				}, x=>{
-					this.$status.textContent = "error"
-				})
-				return p
-			}
-			this.ready()
+			this.status = "loading"
+			let p = new Promise((y,n)=>{
+				this.mf = new MarcFile(thing, e=>{
+					this.crc = crc32(this.mf)
+					this.draw_crc()
+					this.check_valid() ? y() : n('invalid file')
+				}, n)
+			})
+			p.then(x=>{
+				this.status = ""
+			}, x=>{
+				this.status = "error"
+			})
+			this.ready = ()=>p
 		}
+		
 		let [, base_name, ext] = /^([^]*?)(\.[^.]+)?$/i.exec(this.name)
 		this.base = base_name
 		if (ext && ext.toLowerCase()=='.ips') {
@@ -183,6 +178,9 @@ class File {
 		this.$root.remove()
 		this.$root = null
 		clean_rows($item_list)
+	}
+	set status(t) {
+		this.$status.textContent = t || ""
 	}
 	look(tbody, other, test1, test2) {
 		let patches = [...tbody.querySelectorAll(`:scope > tr > td[data-type="${other}"] > file-label`)].map(e=>File.of(e))
@@ -245,16 +243,14 @@ MarcFile.prototype.blob = function() {
 }
 
 async function write_zip(files) {
-	let zbw = new zip.BlobWriter("application/zip")
-	let blob = await {then:(yy,nn)=>zip.createWriter(zbw, async(writer)=>{
-		for (let f of files) {
-			await f.ready()
-			f.$status.textContent = "saving"
-			let zbr = new zip.BlobReader(f.mf.blob())
-			await {then:y=>writer.add(f.name, zbr, y)}
-			f.$status.textContent = "added"
-		}
-		writer.close(yy)
-	}, nn)}
-	return blob
+	let zip = new JSZip()
+	for (let f of files) {
+		await f.ready()
+		f.status = "storing"
+		console.log('zf',zip.file(f.name, f.mf.blob()))
+	}
+	for (let f of files) {
+		f.status = ""
+	}
+	return await zip.generateAsync({type: 'blob'})
 }
