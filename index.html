@@ -121,7 +121,9 @@
 <script>
 	async function upload(files) {
 		for (let f of files) {
-			if (f.type=='application/zip') {
+			// mime type: application/zip
+			// windows uses application/x-zip-compressed?
+			if (f.type.includes('zip') || /\.zip$/i.test(f.name)) {
 				let zip = await JSZip.loadAsync(f, {})
 				for (let ze of Object.values(zip.files)) {
 					let f = new File(ze)
