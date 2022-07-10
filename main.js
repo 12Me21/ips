@@ -270,6 +270,7 @@ async function write_zip(files) {
 	for (let f of files) {
 		await f.ready()
 		f.status = "storing"
+		zip.file(f.name, f.mf.blob())
 	}
 	for (let f of files) {
 		f.status = ""
