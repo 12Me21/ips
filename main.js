@@ -172,8 +172,10 @@ class File {
 		return b
 	}
 	draw_size() {
-		if (this.size>1000)
-			this.$size.textContent = (this.size/1024).toFixed(1)+" KB"
+		if (this.size>1000*1000)
+			this.$size.textContent = (this.size/1024/1024).toFixed(1)+" M"
+		else if (this.size>1000)
+			this.$size.textContent = (this.size/1024).toFixed(1)+" K"
 		else
 			this.$size.textContent = this.size+" B"
 	}
