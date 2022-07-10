@@ -38,7 +38,11 @@
 	file-label[data-type="out"] { background: #0F03; }
 	th[data-type="out"] { background: #0D06; }
 	td[data-type="out"] { background: #0F03; }
-
+	
+	button {
+		cursor: pointer;
+	}
+	
 	file-label > button {
 		color: #D00;
 		font-style: italic;
@@ -61,7 +65,7 @@
 		text-align: right;
 	}
 	#\$item_list td {
-		height: 3em;
+		height: 1em;
 	}
 	file-label {
 		display: block;
@@ -79,8 +83,12 @@
 	td span {
 		padding: .25rem .375rem;
 	}
-	.drop {
-		background: orange;
+	td.drop {
+		background: #FF02;
+		outline: 2px dotted yellow;
+	}
+	file-label.dragging {
+		outline: 2px dotted yellow;
 	}
 	file-label.invalid {
 		background: #F008;
@@ -107,16 +115,19 @@
 
 <script src="main.js"></script>
 
-<input type=file multiple id=$file>
-<hr>
+Upload files/.zips: <input type=file multiple id=$file></label>
 <table id=$table>
-	<thead><tr>
-		<th data-type=rom> rom files <th><th data-type=patch> patch files <th><th data-type=out> output
+	<thead>
+		<tr>
+			<th data-type=rom> rom files
+			<th>
+			<th data-type=patch> patch files<br>
+				<button onclick="btn_apply()">Apply Patches</button>
+			<th>
+			<th data-type=out> output files<br>
+				<button onclick="btn_zip()">Save as .zip</button><a id=$download>💾</a>
 	<tbody id=$item_list>
 </table>
-<button onclick="btn_apply()">Apply</button>
-<button onclick="btn_zip()">Generate Zip</button>
-<a id=$download>Download</a>
 
 <script>
 	async function upload(files) {
@@ -160,6 +171,7 @@
 		cell.ondrop = ev=>{
 			if (dragging && ev.dataTransfer.getData('text/x-drag')) {
 				cell.classList.remove('drop')
+				dragging.classList.remove('dragging')
 				let d = dragging
 				dragging = null
 				let p = d.parentNode
@@ -167,16 +179,20 @@
 					if (!p) return
 					p.append(cell.firstChild)
 				}
-				d.hidden = false
 				cell.append(d)
 				clean_rows($item_list)
+			} else {
+				console.log('idk?', ev)
 			}
 		}
 		cell.ondragenter = ev=>{
-			if (cell.contains(ev.relatedTarget))
-				return
-			cell.classList.add('drop')
-			ev.preventDefault()
+			if (dragging && ev.dataTransfer.getData('text/x-drag')) {
+				if (cell.contains(ev.relatedTarget))
+					return
+				console.log('ok?')
+				cell.classList.add('drop')
+				ev.preventDefault()
+			}
 		}
 		cell.ondragleave = ev=>{
 			if (cell.contains(ev.relatedTarget))
@@ -186,17 +202,14 @@
 	}
 	document.ondragend = ev=>{
 		if (dragging) {
-			dragging.hidden = false
+			dragging.classList.remove('dragging')
 			dragging = null
 		}
 	}
 	$item_list.ondragstart = ev=>{
 		if (ev.target.tagName=='FILE-LABEL') {
 			dragging = ev.target
-			window.setTimeout(e=>{
-				//ev.target.hidden = true
-			}, 2)
-			
+			ev.target.classList.add('dragging')
 			ev.dataTransfer.setData('text/x-drag', 1)
 			ev.dataTransfer.effectAllowed = 'move'
 		}
@@ -244,6 +257,7 @@
 		let out = ips.apply(rom.mf)
 		patch.status = ""
 		out.fileName = rom.name
+		console.log('patched?', out)
 		return new File(out)
 	}
 	

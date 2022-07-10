@@ -70,7 +70,7 @@ let label_template = HTML`
 class File {
 	constructor(thing) {
 		label_template(this)
-		File.elems.set(this.$root, this)
+		this.register()
 		// ZipObject
 		if ('dosPermissions' in thing) {
 			this.name = thing.unsafeOriginalName
@@ -126,8 +126,10 @@ class File {
 			this.ready = ()=>p
 		}
 		
-		let [, base_name, ext] = /^([^]*?)(\.[^.]+)?$/i.exec(this.name)
+		let [, path, base_name, ext] = /^([^]*[/])?([^/]*?)(\.[^./]+)?$/i.exec(this.name)
+		this.path = path || ""
 		this.base = base_name
+		this.ext = ext
 		if (ext && ext.toLowerCase()=='.ips') {
 			this.type = 'patch'
 		} else {
@@ -136,6 +138,9 @@ class File {
 		if (thing.fileName)
 			this.type = 'out'
 		this.draw()
+	}
+	register() {
+		File.elems.set(this.$root, this)
 	}
 	// after ready
 	check_valid() {
@@ -155,12 +160,17 @@ class File {
 			this.$crc.textContent = ("00000000"+this.crc.toString(16)).slice(-8).replace(/..(?!$)/g, "$& ")
 	}
 	clone(type) {
-		let f = Object.create(File.prototype, Object.getOwnPropertyDescriptors(this))
-		label_template(f)
-		File.elems.set(f.$root, f)
-		f.type = type
-		f.draw()
-		return f
+		let base = this
+		// if `this` is already a clone, we clone the original instead
+		if (base.__proto__ instanceof File)
+			base = base.__proto__
+		// clone
+		let b = label_template({type: type})
+		b.__proto__ = this
+		// ok
+		b.register()
+		b.draw()
+		return b
 	}
 	draw() {
 		this.$root.dataset.type = this.type
@@ -182,12 +192,13 @@ class File {
 	set status(t) {
 		this.$status.textContent = t || ""
 	}
-	look(tbody, other, test1, test2) {
-		let patches = [...tbody.querySelectorAll(`:scope > tr > td[data-type="${other}"] > file-label`)].map(e=>File.of(e))
-		let p = patches.find(test1) || patches.find(test2)
+	look(tbody, other, test) {
+		let patches = [...tbody.querySelectorAll(`td[data-type="${other}"] > file-label`)].map(e=>File.of(e))
+		let matches = patches.map(p=>[test(p),p]).filter(x=>x[0])
+		let p = matches.sort((a,b)=>a[0]-b[0])[0]
 		let row
 		if (p) {
-			row = p.$root.parentNode.parentNode
+			row = p[1].$root.parentNode.parentNode
 		} else {
 			for (let r of tbody.rows) {
 				if (!r.querySelector('file-label'))
@@ -203,15 +214,27 @@ class File {
 	put(cell) {
 		cell.replaceChildren(this.$root)
 	}
-	
 	insert(tbody) {
-		if (this.type=='rom') {
-			this.look(tbody, 'patch', p=>p.base==this.name, p=>p.base==this.base)
-		} else {
-			this.look(tbody, 'rom', p=>p.name==this.base, p=>p.base==this.base)
-		}
+		if (this.type=='rom')
+			this.look(tbody, 'patch', p=>File.compare_names(this, p))
+		else
+			this.look(tbody, 'rom', p=>File.compare_names(p, this))
 	}
-	
+	static compare_names(rom, patch) {
+		let pp = patch.path+patch.base
+		// path/name.ext - path/name.ext.ips
+		if (rom.name == pp) return 10
+		// path/name.ext - path/name.ips
+		if (rom.path+rom.base == pp) return 6
+		// path/name.ext - name.ext.ips
+		if (rom.base+rom.ext == pp) return 9
+		// path/name.ext - name.ips
+		if (rom.base == pp) return 5
+		// name.ext - name.ext.ips
+		if (rom.base+rom.ext == patch.base) return 8
+		// name.ext - name.ips
+		if (rom.base == patch.base) return 4
+	}
 	static of(elem) {
 		return this.elems.get(elem)
 	}
@@ -246,6 +269,7 @@ async function write_zip(files) {
 	let zip = new JSZip()
 	for (let f of files) {
 		await f.ready()
+		console.log('ready?', f, f.mf)
 		f.status = "storing"
 		console.log('zf',zip.file(f.name, f.mf.blob()))
 	}
