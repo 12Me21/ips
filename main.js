@@ -58,7 +58,6 @@ let label_template = HTML`
 <file-label draggable=true>
 	<div>
 		<span $=name class='filename'></span>
-		<span $=status class='status'></span>
 	</div>
 	<div class=info>
 		<button $=delete>×</button>
@@ -172,13 +171,16 @@ class File {
 		b.draw()
 		return b
 	}
-	draw() {
-		this.$root.dataset.type = this.type
-		this.$name.textContent = this.name
+	draw_size() {
 		if (this.size>1000)
 			this.$size.textContent = (this.size/1024).toFixed(1)+" KB"
 		else
 			this.$size.textContent = this.size+" B"
+	}
+	draw() {
+		this.$root.dataset.type = this.type
+		this.$name.textContent = this.name
+		this.draw_size()
 		this.draw_crc()
 		this.$delete.onclick = ev=>{this.delete()}
 	}
@@ -190,7 +192,11 @@ class File {
 		clean_rows($item_list)
 	}
 	set status(t) {
-		this.$status.textContent = t || ""
+		this.$size.classList.toggle('status', !!t)
+		if (t)
+			this.$size.textContent = t
+		else
+			this.draw_size()
 	}
 	look(tbody, other, test) {
 		let patches = [...tbody.querySelectorAll(`td[data-type="${other}"] > file-label`)].map(e=>File.of(e))
