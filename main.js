@@ -58,7 +58,7 @@ let label_template = HTML`
 <file-label draggable=true>
 	<div>
 		<span $=name class='filename'></span>
-		<span $=status></span>
+		<span $=status class='status'></span>
 	</div>
 	<div class=info>
 		<button $=delete>×</button>
