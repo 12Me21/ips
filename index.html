@@ -189,7 +189,6 @@ Upload files/.zips: <input type=file multiple id=$file></label>
 			if (dragging && ev.dataTransfer.getData('text/x-drag')) {
 				if (cell.contains(ev.relatedTarget))
 					return
-				console.log('ok?')
 				cell.classList.add('drop')
 				ev.preventDefault()
 			}
@@ -257,7 +256,6 @@ Upload files/.zips: <input type=file multiple id=$file></label>
 		let out = ips.apply(rom.mf)
 		patch.status = ""
 		out.fileName = rom.name
-		console.log('patched?', out)
 		return new File(out)
 	}
 	

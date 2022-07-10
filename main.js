@@ -269,9 +269,7 @@ async function write_zip(files) {
 	let zip = new JSZip()
 	for (let f of files) {
 		await f.ready()
-		console.log('ready?', f, f.mf)
 		f.status = "storing"
-		console.log('zf',zip.file(f.name, f.mf.blob()))
 	}
 	for (let f of files) {
 		f.status = ""
