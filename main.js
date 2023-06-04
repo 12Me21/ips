@@ -61,7 +61,7 @@ let label_template = HTML`
 	</div>
 	<div class=info>
 		<button $=delete>×</button>
-		<span $=size></span> <span $=crc class=crc></span>
+		<span $=size style=white-space:pre-wrap></span> <span $=crc class=crc></span>
 	</div>
 </file-label>`
 
@@ -69,6 +69,10 @@ let patch_formats = [
 	{magic: IPS_MAGIC, parse: parseIPSFile},
 	{magic: BPS_MAGIC, parse: parseBPSFile},
 ]
+
+function format_crc(crc) {
+	return ("00000000"+crc.toString(16)).slice(-8).replace(/..(?!$)/g, "$& ")
+}
 
 class File {
 	constructor(thing) {
@@ -163,7 +167,7 @@ class File {
 	}
 	draw_crc() {
 		if (this.crc)
-			this.$crc.textContent = ("00000000"+this.crc.toString(16)).slice(-8).replace(/..(?!$)/g, "$& ")
+			this.$crc.textContent = format_crc(this.crc)
 	}
 	clone(type) {
 		let base = this

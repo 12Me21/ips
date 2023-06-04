@@ -60,6 +60,9 @@
 		word-spacing: -73%;
 		text-align: right;
 	}
+	file-label > .info > button {
+		max-height: 1.5em; /* nnh */
+	}
 	.crc {
 		flex-grow: 1;
 		text-align: right;
@@ -122,7 +125,7 @@
 
 <script src="main.js"></script>
 
-Upload files/.zips: <input type=file multiple id=$file></label>
+Upload files/.zips: <input type=file multiple id=$file></label> | <button style=float:right onclick="for (let x of document.querySelectorAll('file-label')) File.of(x).delete()">Clear</button>
 <table id=$table>
 	<thead>
 		<tr>
@@ -231,6 +234,7 @@ Upload files/.zips: <input type=file multiple id=$file></label>
 		if (rows.length<1 || rows[rows.length-1].querySelector('file-label'))
 			add_row(tbody)
 		else if (rows.length>=2) {
+			// why do i only ever remove 1..
 			let last2 = rows[rows.length-2]
 			if (!last2.querySelector('file-label'))
 				last2.remove()
@@ -260,8 +264,17 @@ Upload files/.zips: <input type=file multiple id=$file></label>
 			return
 		patch.status = "applying"
 		let ips = patch.patch_format.parse(patch.mf) // (not just ips)
+		let bad
+		console.info(ips.sourceChecksum, rom.crc)
+		if (ips.sourceChecksum != undefined) { // not all patch formats have a checksum
+			if (ips.sourceChecksum != rom.crc) {
+				bad = true
+				patch.status = "wrong rom file?\ngot crc: "+format_crc(rom.crc)+"\nexpected: "+format_crc(ips.sourceChecksum)
+			}
+		}
 		let out = ips.apply(rom.mf)
-		patch.status = ""
+		if (!bad)
+			patch.status = ""
 		out.fileName = rom.name
 		return new File(out)
 	}
