@@ -108,6 +108,7 @@
 <script src="js/MarcFile.js"></script>
 <script src="js/crc.js"></script>
 <script src="js/formats/ips.js"></script>
+<script src="js/formats/bps.js"></script>
 <!--
 <script src="js/formats/ups.js"></script>
 <script src="js/formats/aps.js"></script>
@@ -258,7 +259,7 @@ Upload files/.zips: <input type=file multiple id=$file></label>
 		if (patch.type!='patch')
 			return
 		patch.status = "applying"
-		let ips = parseIPSFile(patch.mf)
+		let ips = patch.patch_format.parse(patch.mf) // (not just ips)
 		let out = ips.apply(rom.mf)
 		patch.status = ""
 		out.fileName = rom.name

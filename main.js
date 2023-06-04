@@ -61,10 +61,14 @@ let label_template = HTML`
 	</div>
 	<div class=info>
 		<button $=delete>×</button>
-		<span $=size></span>
-		<span $=crc class=crc></span>
+		<span $=size></span> <span $=crc class=crc></span>
 	</div>
 </file-label>`
+
+let patch_formats = [
+	{magic: IPS_MAGIC, parse: parseIPSFile},
+	{magic: BPS_MAGIC, parse: parseBPSFile},
+]
 
 class File {
 	constructor(thing) {
@@ -129,7 +133,7 @@ class File {
 		this.path = path || ""
 		this.base = base_name
 		this.ext = ext
-		if (ext && ext.toLowerCase()=='.ips') {
+		if (/[.](ips|bps)/i.test(ext)) {
 			this.type = 'patch'
 		} else {
 			this.type = 'rom'
@@ -146,7 +150,10 @@ class File {
 		if (this.type=='patch') {
 			let p = this.mf
 			p.seek(0)
-			if (String.fromCharCode.apply(String, p.readBytes(5)) != IPS_MAGIC) {
+			let magic = p.readString(6)
+			let format = patch_formats.find(x=>magic.startsWith(x.magic))
+			this.patch_format = format
+			if (!format) {
 				this.invalid = true
 				this.$root.classList.add('invalid')
 				return false
