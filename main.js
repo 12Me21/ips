@@ -166,7 +166,7 @@ class File {
 		return true
 	}
 	draw_crc() {
-		if (this.crc)
+		if (this.crc && this.type != 'patch')
 			this.$crc.textContent = format_crc(this.crc)
 	}
 	clone(type) {

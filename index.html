@@ -6,6 +6,9 @@
 	* {
 		word-break: break-word;
 	}
+	html, body {
+		background: snow;
+	}
 	
 	table, td, th {
 		border: 1px solid gray;
@@ -234,10 +237,11 @@ Upload files/.zips: <input type=file multiple id=$file></label> | <button style=
 		if (rows.length<1 || rows[rows.length-1].querySelector('file-label'))
 			add_row(tbody)
 		else if (rows.length>=2) {
-			// why do i only ever remove 1..
-			let last2 = rows[rows.length-2]
-			if (!last2.querySelector('file-label'))
-				last2.remove()
+			for (let i=0; i<rows.length; i++) {
+				let last2 = rows[rows.length-2]
+				if (!last2.querySelector('file-label'))
+					last2.remove()
+			}
 		}
 	}
 	clean_rows($item_list)
